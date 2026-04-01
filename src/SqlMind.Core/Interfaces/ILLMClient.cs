@@ -1,3 +1,5 @@
+using SqlMind.Core.Models;
+
 namespace SqlMind.Core.Interfaces;
 
 /// <summary>
@@ -8,16 +10,31 @@ namespace SqlMind.Core.Interfaces;
 public interface ILLMClient
 {
     /// <summary>
-    /// Sends a prompt to the LLM and returns a structured JSON response.
+    /// Sends a prompt to the LLM and returns a raw JSON string.
+    /// System and user prompts are kept separate to prevent prompt injection.
     /// </summary>
-    /// <param name="systemPrompt">Isolated system prompt to prevent injection.</param>
-    /// <param name="userPrompt">User-supplied prompt, sanitized before passing.</param>
+    /// <param name="systemPrompt">Isolated system prompt (role, rules, output schema).</param>
+    /// <param name="userPrompt">SQL content and context — sanitized before passing.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Raw JSON string conforming to the LLM output schema.</returns>
-    Task<string> CompleteAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken = default);
+    Task<string> CompleteAsync(
+        string systemPrompt,
+        string userPrompt,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns the provider name (e.g., "gemini", "openai", "anthropic").
+    /// Analyzes a SQL script using the full request context and returns a validated result.
+    /// Combines prompt building, LLM call, JSON parsing, and schema validation.
     /// </summary>
+    Task<LlmAnalysisResult> AnalyzeAsync(
+        LlmAnalysisRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks whether the LLM provider is reachable and responding.
+    /// </summary>
+    Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the provider name (e.g., "gemini", "openai", "anthropic").</summary>
     string ProviderName { get; }
 }

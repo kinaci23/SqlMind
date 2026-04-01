@@ -23,4 +23,19 @@ public sealed class SqlParseResult
     public long? EstimatedRowImpact { get; init; }
 
     public IReadOnlyList<string> ParseWarnings { get; init; } = [];
+
+    /// <summary>True if at least one WHERE clause is present in any statement.</summary>
+    public bool WhereClauseExists { get; init; }
+
+    /// <summary>True if at least one JOIN is present in any statement.</summary>
+    public bool JoinExists { get; init; }
+
+    /// <summary>True if a DROP TABLE/VIEW/INDEX statement is present.</summary>
+    public bool HasDropStatement { get; init; }
+
+    /// <summary>True if a TRUNCATE statement is present.</summary>
+    public bool HasTruncateStatement { get; init; }
+
+    /// <summary>True if an ALTER TABLE statement is present.</summary>
+    public bool HasAlterStatement { get; init; }
 }
