@@ -1,29 +1,26 @@
+using SqlMind.Core.Enums;
 using SqlMind.Core.Models;
 
 namespace SqlMind.Core.Interfaces;
 
 /// <summary>
 /// Orchestrates tool execution after IPolicyEngine approval.
-/// Resolves the correct ITool implementation, passes inputs, and records results to audit_logs.
+/// Resolves the correct ITool implementation per ActionType, passes inputs built from
+/// AnalysisContext, and records every result for audit.
 /// </summary>
 public interface IToolExecutor
 {
     /// <summary>
-    /// Executes a named tool with the provided input and records the execution.
+    /// Executes all approved actions using the provided analysis context.
     /// </summary>
-    /// <param name="toolName">Tool name matching ITool.Name.</param>
-    /// <param name="input">Input payload for the tool.</param>
-    /// <param name="correlationId">Audit correlation ID — mandatory for all executions.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Execution result containing output and status.</returns>
-    Task<ToolExecutionResult> ExecuteAsync(
-        string toolName,
-        object input,
-        string correlationId,
-        CancellationToken cancellationToken = default);
+    /// <param name="actions">Ordered list of approved actions from IPolicyEngine.</param>
+    /// <param name="context">Runtime context used to build each tool's input payload.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<List<ToolExecutionResult>> ExecuteToolsAsync(
+        List<ActionType> actions,
+        AnalysisContext context,
+        CancellationToken ct = default);
 
-    /// <summary>
-    /// Returns all registered tool names available for execution.
-    /// </summary>
-    IReadOnlyList<string> GetAvailableTools();
+    /// <summary>Returns all registered ITool implementations available for execution.</summary>
+    Task<List<ITool>> GetAvailableToolsAsync();
 }
