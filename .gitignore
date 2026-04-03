@@ -59,3 +59,6 @@ docker-compose.override.yml
 *.log
 *.tmp
 Thumbs.db
+
+## Docs
+*.md
