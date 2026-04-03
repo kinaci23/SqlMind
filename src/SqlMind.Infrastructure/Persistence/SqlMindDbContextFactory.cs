@@ -14,7 +14,7 @@ public sealed class SqlMindDbContextFactory : IDesignTimeDbContextFactory<SqlMin
     {
         var connectionString =
             Environment.GetEnvironmentVariable("DATABASE_URL")
-            ?? "Host=localhost;Port=5432;Database=sqlmind;Username=sqlmind;Password=sqlmind_secret";
+            ?? "Host=localhost;Port=5433;Database=sqlmind;Username=postgres;Password=sqlmind123";
 
         var options = new DbContextOptionsBuilder<SqlMindDbContext>()
             .UseNpgsql(connectionString, npgsql => npgsql.UseVector())
