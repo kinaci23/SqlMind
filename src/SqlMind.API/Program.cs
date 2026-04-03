@@ -1,3 +1,4 @@
+using AspNetCoreRateLimit;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication;
@@ -10,6 +11,7 @@ using SqlMind.Infrastructure.Cache;
 using SqlMind.Infrastructure.Jobs;
 using SqlMind.Infrastructure.LLM;
 using SqlMind.Infrastructure.RAG;
+using SqlMind.Infrastructure.Schema;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -21,6 +23,15 @@ var disableAuth = builder.Environment.IsDevelopment() && cfg.GetValue<bool>("Dis
 // Startup diagnostic — will be removed after smoke test passes
 Console.WriteLine($"[DIAG] GEMINI_API_KEY present: {!string.IsNullOrEmpty(cfg["GEMINI_API_KEY"])}");
 Console.WriteLine($"[DIAG] Environment: {builder.Environment.EnvironmentName}");
+
+// ── Rate limiting ───────────────────────────────────────────────────��─────────
+// IP-based rate limiting via AspNetCoreRateLimit.
+// Rules are configured in appsettings.json → IpRateLimiting section.
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(cfg.GetSection("IpRateLimiting"));
+builder.Services.Configure<IpRateLimitPolicies>(cfg.GetSection("IpRateLimitPolicies"));
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 // ── Controllers + JSON ────────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -77,6 +88,7 @@ builder.Services.AddSqlAnalysis();        // ISqlAnalyzer, IRiskEvaluator
 builder.Services.AddAgentServices();      // IPolicyEngine, ITool×3, IToolExecutor
 builder.Services.AddRepositories();       // IAnalysisJobRepository, IAnalysisResultRepository, IAuditLogRepository
 builder.Services.AddAnalysisOrchestrator(); // AgentOrchestrator, AnalysisOrchestrator
+builder.Services.AddSchemaIngestion();    // ISchemaIngestionService
 
 // ── Redis cache ───────────────────────────────────────────────────────────────
 builder.Services.AddRedisCache();
@@ -110,6 +122,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SqlMind API v1"));
     app.UseHangfireDashboard("/hangfire"); // visible only in dev
 }
+app.UseIpRateLimiting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

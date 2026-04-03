@@ -111,6 +111,10 @@ public sealed class RagService : IRagService
 
         var queryVector = await _embedding.EmbedAsync(query, ct);
 
+        // pgvector HNSW index aktif — büyük knowledge base'de cosine similarity
+        // artık O(log n) ile çalışıyor, full scan değil
+        // (idx_embeddings_vector_hnsw: USING hnsw (vector vector_cosine_ops) WITH m=16, ef_construction=64)
+        //
         // pgvector cosine distance operator: <=>
         // Lower distance = higher similarity. We convert to similarity score: 1 - distance.
         var pgVector = new Pgvector.Vector(queryVector);

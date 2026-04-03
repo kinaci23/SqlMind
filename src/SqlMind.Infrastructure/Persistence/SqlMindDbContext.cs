@@ -29,7 +29,9 @@ public sealed class SqlMindDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // ── pgvector extension ────────────────────────────────────────────────
-        modelBuilder.HasPostgresExtension("vector");
+        // Guard: InMemory provider (used in unit tests) does not support Npgsql extensions.
+        if (Database.IsNpgsql())
+            modelBuilder.HasPostgresExtension("vector");
 
         // ── KnowledgeDocument ─────────────────────────────────────────────────
         modelBuilder.Entity<KnowledgeDocument>(e =>
@@ -74,14 +76,23 @@ public sealed class SqlMindDbContext : DbContext
             e.HasKey(r => r.Id);
             e.Property(r => r.CreatedAt).IsRequired();
 
-            var vectorConverter = new ValueConverter<float[], Vector>(
-                v => new Vector(v),
-                v => v.ToArray());
+            // Npgsql-only: pgvector type requires Npgsql type mappings (UseVector()).
+            // InMemory provider (unit tests) ignores this block and stores float[] natively.
+            if (Database.IsNpgsql())
+            {
+                var vectorConverter = new ValueConverter<float[], Vector>(
+                    v => new Vector(v),
+                    v => v.ToArray());
 
-            e.Property(r => r.Vector)
-             .HasColumnType("vector(3072)")
-             .HasConversion(vectorConverter)
-             .IsRequired();
+                e.Property(r => r.Vector)
+                 .HasColumnType("vector(3072)")
+                 .HasConversion(vectorConverter)
+                 .IsRequired();
+            }
+            else
+            {
+                e.Property(r => r.Vector).IsRequired();
+            }
 
             e.HasOne(r => r.Chunk)
              .WithOne()
