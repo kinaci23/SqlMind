@@ -116,6 +116,13 @@ public sealed class AnalysisController : ControllerBase
             catch { /* non-fatal — partial report */ }
         }
 
+        SqlParseResult? parse = null;
+        if (!string.IsNullOrEmpty(job.ParseResultJson))
+        {
+            try { parse = JsonSerializer.Deserialize<SqlParseResult>(job.ParseResultJson, _json); }
+            catch { /* non-fatal */ }
+        }
+
         // Risk score: midpoint of band
         var riskScore = result.AggregateRiskLevel switch
         {
@@ -131,8 +138,8 @@ public sealed class AnalysisController : ControllerBase
             CorrelationId     = result.CorrelationId,
             SummaryBusiness   = llm?.BusinessSummary   ?? string.Empty,
             SummaryTechnical  = llm?.TechnicalSummary  ?? string.Empty,
-            Operations        = [], // populated if parse result stored separately
-            AffectedTables    = [],
+            Operations        = parse?.Operations.Select(o => o.ToString()).ToList() ?? [],
+            AffectedTables    = parse?.TablesDetected.ToList() ?? [],
             AffectedColumns   = [],
             RiskLevel         = result.AggregateRiskLevel.ToString(),
             RiskScore         = riskScore,

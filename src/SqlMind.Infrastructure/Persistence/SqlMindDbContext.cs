@@ -99,6 +99,7 @@ public sealed class SqlMindDbContext : DbContext
             e.Property(j => j.InputHash).HasMaxLength(64).IsRequired();
             e.Property(j => j.Status).HasMaxLength(20).IsRequired();
             e.Property(j => j.BackgroundJobId).HasMaxLength(100);
+            e.Property(j => j.ParseResultJson).HasColumnType("jsonb");
             e.Property(j => j.CreatedAt).IsRequired();
             e.HasIndex(j => j.CorrelationId);
             e.HasIndex(j => j.InputHash);

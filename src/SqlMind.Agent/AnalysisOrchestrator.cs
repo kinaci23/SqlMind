@@ -96,6 +96,8 @@ public sealed class AnalysisOrchestrator
             _logger.LogDebug("Step 1: SQL parse — CorrelationId={Id}", job.CorrelationId);
             var parseResult = await _sqlAnalyzer.ParseAsync(job.SqlContent, ct);
             sqlParseJson    = JsonSerializer.Serialize(parseResult, _json);
+            job.ParseResultJson = sqlParseJson;
+            await _jobRepo.UpdateAsync(job, ct);
 
             // ── 2. RULE-BASED RISK ────────────────────────────────────────────
             _logger.LogDebug("Step 2: Rule-based risk — CorrelationId={Id}", job.CorrelationId);

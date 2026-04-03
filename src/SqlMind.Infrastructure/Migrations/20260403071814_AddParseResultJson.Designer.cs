@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -12,9 +13,11 @@ using SqlMind.Infrastructure.Persistence;
 namespace SqlMind.Infrastructure.Migrations
 {
     [DbContext(typeof(SqlMindDbContext))]
-    partial class SqlMindDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403071814_AddParseResultJson")]
+    partial class AddParseResultJson
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

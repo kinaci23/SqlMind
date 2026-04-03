@@ -14,6 +14,8 @@ public sealed class AnalysisJob
     public string InputHash { get; init; } = string.Empty;
     public string Status { get; set; } = "Enqueued";
     public string? BackgroundJobId { get; set; }
+    /// <summary>JSON-serialized SqlParseResult stored at pipeline step 1.</summary>
+    public string? ParseResultJson { get; set; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }
     public Guid? ResultId { get; set; }

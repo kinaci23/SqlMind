@@ -29,7 +29,10 @@ builder.Services.AddControllers()
 
 // ── Swagger/OpenAPI ───────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApi();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "SqlMind API", Version = "v1" });
+});
 
 // ── Authentication ────────────────────────────────────────────────────────────
 if (disableAuth)
@@ -103,11 +106,10 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SqlMind API v1"));
     app.UseHangfireDashboard("/hangfire"); // visible only in dev
 }
-
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

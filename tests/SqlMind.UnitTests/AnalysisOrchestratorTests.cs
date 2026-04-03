@@ -393,7 +393,7 @@ public sealed class AnalysisOrchestratorTests
     }
 
     [Fact]
-    public async Task ComputeHash_ShouldBeDeterministic()
+    public void ComputeHash_ShouldBeDeterministic()
     {
         var sql  = "SELECT 1";
         var h1   = AnalysisOrchestrator.ComputeHash(sql);
