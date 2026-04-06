@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SqlMind Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --orange: #db6d28;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── STATUS BAR ── */
+  #statusbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  #statusbar h1 { font-size: 18px; font-weight: 600; color: #fff; flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); flex-shrink: 0; transition: background .3s; }
+  .dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  #api-status-text { font-size: 12px; color: var(--text-muted); }
+  #last-update { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 16px;
+    padding: 16px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+
+  /* ── FORM ELEMENTS ── */
+  label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  textarea, input[type="text"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color .2s;
+    resize: vertical;
+  }
+  textarea:focus, input[type="text"]:focus, select:focus { border-color: var(--accent); }
+  textarea#sql-input { min-height: 180px; font-family: 'Courier New', monospace; font-size: 13px; }
+
+  .field { display: flex; flex-direction: column; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .checkbox-row input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer;
+  }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check-grid { display: flex; gap: 20px; }
+
+  /* ── BUTTONS ── */
+  button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  button:hover { opacity: .85; }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: none;
+  }
+  .spinner.visible { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── ALERT ── */
+  .alert {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    display: none;
+  }
+  .alert.error { background: rgba(248,81,73,.12); border: 1px solid var(--red); color: var(--red); display: block; }
+  .alert.info  { background: rgba(88,166,255,.1); border: 1px solid var(--accent); color: var(--accent); display: block; }
+  .alert.success { background: rgba(63,185,80,.1); border: 1px solid var(--green); color: var(--green); display: block; }
+
+  /* ── BADGES ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .badge-low      { background: rgba(63,185,80,.15);  color: var(--green); border: 1px solid var(--green); }
+  .badge-medium   { background: rgba(210,153,34,.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .badge-high     { background: rgba(219,109,40,.15); color: var(--orange); border: 1px solid var(--orange); }
+  .badge-critical { background: rgba(248,81,73,.15);  color: var(--red);    border: 1px solid var(--red); }
+  .badge-ok       { background: rgba(63,185,80,.1);   color: var(--green);  border: 1px solid var(--green); }
+  .badge-no       { background: rgba(139,148,158,.1); color: var(--text-muted); border: 1px solid var(--border); }
+  .badge-proc     { background: rgba(88,166,255,.1);  color: var(--accent); border: 1px solid var(--accent); }
+  .badge-fail     { background: rgba(248,81,73,.1);   color: var(--red);    border: 1px solid var(--red); }
+
+  /* ── RESULT PANEL ── */
+  #result-panel { overflow-y: auto; }
+
+  .result-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    gap: 10px;
+    padding: 40px;
+    text-align: center;
+  }
+  .result-empty svg { opacity: .3; }
+
+  .risk-big {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .risk-label { font-size: 28px; font-weight: 800; }
+  .risk-label.low      { color: var(--green); }
+  .risk-label.medium   { color: var(--yellow); }
+  .risk-label.high     { color: var(--orange); }
+  .risk-label.critical { color: var(--red); }
+
+  .progress-wrap { margin-top: 4px; }
+  .progress-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .progress-bar-bg { background: var(--surface2); border-radius: 4px; height: 8px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
+
+  .summary-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .summary-box-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+
+  .list-items { display: flex; flex-direction: column; gap: 6px; }
+  .list-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .list-item::before { content: '›'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+  .list-empty { color: var(--text-muted); font-size: 12px; font-style: italic; }
+
+  .meta-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .meta-kv { font-size: 12px; color: var(--text-muted); }
+  .meta-kv strong { color: var(--text); margin-right: 4px; }
+
+  /* ── BOTTOM ── */
+  #bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 0 16px 16px;
+  }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background .15s;
+  }
+  tbody tr:hover { background: var(--surface2); }
+  tbody tr.selected { background: rgba(88,166,255,.07); }
+  tbody td { padding: 8px 10px; color: var(--text); vertical-align: middle; }
+  .mono { font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-muted); }
+
+  /* ── KB CARDS ── */
+  .kb-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .kb-card-text { font-size: 13px; line-height: 1.6; color: var(--text); }
+  .kb-card-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .kb-search-row { display: flex; gap: 8px; }
+  .kb-search-row input { flex: 1; }
+
+  #kb-results { display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ── JOB STATUS ── */
+  #job-status { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; min-height: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     BÖLÜM 1: DURUM ÇUBUĞU
+═══════════════════════════════════════════ -->
+<div id="statusbar">
+  <div class="dot" id="api-dot"></div>
+  <span id="api-status-text">Bağlanıyor...</span>
+  <h1>SqlMind Dashboard</h1>
+  <span id="last-update">—</span>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ANA ALAN: SOL (FORM) + SAĞ (SONUÇ)
+═══════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- ── BÖLÜM 2: SQL ANALİZ FORMU ── -->
+  <div class="panel" id="analyze-panel">
+    <div class="panel-title">SQL Analizi</div>
+
+    <div class="field">
+      <label for="sql-input">SQL İçeriği</label>
+      <textarea id="sql-input" placeholder="SELECT * FROM users WHERE id = 1;&#10;&#10;-- veya --&#10;&#10;DELETE FROM orders;"></textarea>
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="env-select">Environment</label>
+        <select id="env-select">
+          <option value="development">development</option>
+          <option value="production">production</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="requested-by">Requested By</label>
+        <input type="text" id="requested-by" placeholder="kullanici@sirket.com" value="dashboard-user">
+      </div>
+    </div>
+
+    <div class="check-grid">
+      <label class="checkbox-row">
+        <input type="checkbox" id="use-rag" checked>
+        use_rag
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="auto-action">
+        auto_action
+      </label>
+    </div>
+
+    <div id="analyze-alert" class="alert"></div>
+
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button id="analyze-btn" onclick="submitAnalysis()">
+        <div class="spinner" id="analyze-spinner"></div>
+        Analiz Gönder
+      </button>
+      <div id="job-status"></div>
+    </div>
+  </div>
+
+  <!-- ── BÖLÜM 3: ANALİZ SONUCU ── -->
+  <div class="panel" id="result-panel">
+    <div class="panel-title">Analiz Sonucu</div>
+
+    <div id="result-empty" class="result-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="M9 12h6M9 16h4"/>
+      </svg>
+      <span>Henüz analiz yok.<br>Sol panelden SQL gönder.</span>
+    </div>
+
+    <div id="result-content" style="display:none;display:flex;flex-direction:column;gap:14px;">
+      <!-- Risk -->
+      <div class="risk-big">
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">RİSK SEVİYESİ</div>
+          <div class="risk-label" id="res-risk-label">—</div>
+        </div>
+        <div id="res-rag-badge"></div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>Risk Skoru</span>
+          <span id="res-score-text">—</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="res-score-bar" style="width:0%;background:var(--green)"></div>
+        </div>
+      </div>
+
+      <!-- Business Summary -->
+      <div>
+        <div class="summary-box-label">Business Summary</div>
+        <div class="summary-box" id="res-business">—</div>
+      </div>
+
+      <!-- Technical Summary -->
+      <div>
+        <div class="summary-box-label">Technical Summary</div>
+        <div class="summary-box" id="res-technical">—</div>
+      </div>
+
+      <!-- Rule Triggers -->
+      <div>
+        <div class="summary-box-label">Tetiklenen Kurallar</div>
+        <div class="list-items" id="res-rules"></div>
+      </div>
+
+      <!-- Recommended Actions -->
+      <div>
+        <div class="summary-box-label">Önerilen Aksiyonlar</div>
+        <div class="list-items" id="res-recommended"></div>
+      </div>
+
+      <!-- Executed Actions -->
+      <div>
+        <div class="summary-box-label">Çalıştırılan Aksiyonlar</div>
+        <div class="list-items" id="res-executed"></div>
+      </div>
+
+      <!-- Meta -->
+      <div class="meta-row" id="res-meta"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     ALT ALAN: GEÇMİŞ + KNOWLEDGE BASE
+═══════════════════════════════════════════ -->
+<div id="bottom">
+
+  <!-- ── BÖLÜM 4: GEÇMİŞ ANALİZLER ── -->
+  <div class="panel">
+    <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+      Geçmiş Analizler
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="spinner" id="history-spinner"></div>
+        <button class="secondary" style="padding:4px 10px;font-size:12px;" onclick="loadHistory()">Yenile</button>
+      </div>
+    </div>
+    <div id="history-alert" class="alert"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>SQL</th>
+            <th>Risk</th>
+            <th>Durum</th>
+            <th>Tarih</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px;">Yükleniyor...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── BÖLÜM 5: KNOWLEDGE BASE ARAMA ── -->
+  <div class="panel">
+    <div class="panel-title">Knowledge Base Arama</div>
+    <div class="kb-search-row">
+      <input type="text" id="kb-query" placeholder="Arama terimi..." onkeydown="if(event.key==='Enter')searchKB()">
+      <button onclick="searchKB()">
+        <div class="spinner" id="kb-spinner"></div>
+        Ara
+      </button>
+    </div>
+    <div id="kb-alert" class="alert"></div>
+    <div id="kb-results">
+      <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
+        Arama yapmak için yukarıya bir terim gir.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const API = 'http://localhost:5127/api/v1';
+let pollingTimer = null;
+let historyTimer = null;
+let selectedRow = null;
+
+// ─────────────────────────────────────────────
+// YARDIMCI: fetch wrapper
+// ─────────────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    ...options
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+// ─────────────────────────────────────────────
+// DURUM ÇUBUĞU
+// ─────────────────────────────────────────────
+async function checkApiStatus() {
+  const dot = document.getElementById('api-dot');
+  const txt = document.getElementById('api-status-text');
+  const upd = document.getElementById('last-update');
+  try {
+    // basit ping — reports endpoint'ini kullan
+    await fetch(API + '/reports?page=1&page_size=1', { signal: AbortSignal.timeout(3000) });
+    dot.classList.add('online');
+    txt.textContent = 'API Bağlı';
+  } catch {
+    dot.classList.remove('online');
+    txt.textContent = 'API Bağlanamadı';
+  }
+  upd.textContent = 'Son güncelleme: ' + new Date().toLocaleTimeString('tr-TR');
+}
+
+// ─────────────────────────────────────────────
+// BÖLÜM 2: ANALİZ GÖNDER
+// ─────────────────────────────────────────────
+async function submitAnalysis() {
+  const sql = document.getElementById('sql-input').value.trim();
+  const alertEl = document.getElementById('analyze-alert');
+  const btn = document.getElementById('analyze-btn');
+  const spinner = document.getElementById('analyze-spinner');
+  const statusEl = document.getElementById('job-status');
+
+  clearAlert(alertEl);
+
+  if (!sql) { showAlert(alertEl, 'SQL içeriği boş olamaz.', 'error'); return; }
+
+  btn.disabled = true;
+  spinner.classList.add('visible');
+  statusEl.innerHTML = 'Gönderiliyor...';
+
+  const body = {
+    sql_content: sql,
+    db_dialect: 'postgresql',
+    environment: document.getElementById('env-select').value,
+    requested_by: document.getElementById('requested-by').value || 'dashboard-user',
+    options: {
+      use_rag: document.getElementById('use-rag').checked,
+      auto_action: document.getElementById('auto-action').checked,
+      risk_threshold: 'HIGH'
+    }
+  };
+
+  try {
+    const data = await apiFetch('/analyze', { method: 'POST', body: JSON.stringify(body) });
+    const jobId = data.job_id || data.jobId || data.id;
+    if (!jobId) throw new Error('Sunucudan job_id gelmedi');
+
+    showAlert(alertEl, `Job oluşturuldu: ${jobId}`, 'info');
+    statusEl.innerHTML = `<span style="color:var(--accent)">Job: ${jobId.slice(0,8)}…</span> — sorguluyorum…`;
+    startPolling(jobId);
+  } catch (e) {
+    showAlert(alertEl, 'API\'ye bağlanılamadı: ' + e.message, 'error');
+    statusEl.innerHTML = '';
+    btn.disabled = false;
+    spinner.classList.remove('visible');
+  }
+}
+
+// ─────────────────────────────────────────────
+// POLLING
+// ─────────────────────────────────────────────
+function startPolling(jobId) {
+  if (pollingTimer) clearInterval(pollingTimer);
+  pollOnce(jobId);
+  pollingTimer = setInterval(() => pollOnce(jobId), 2000);
+}
+
+async function pollOnce(jobId) {
+  const statusEl = document.getElementById('job-status');
+  try {
+    const data = await apiFetch(`/analyze/${jobId}`);
+    const status = (data.status || '').toLowerCase();
+
+    if (status === 'completed' || status === 'failed') {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+      document.getElementById('analyze-btn').disabled = false;
+      document.getElementById('analyze-spinner').classList.remove('visible');
+      statusEl.innerHTML = `<span style="color:${status === 'completed' ? 'var(--green)' : 'var(--red)'}">● ${status === 'completed' ? 'Tamamlandı' : 'Başarısız'}</span>`;
+      renderResult(data);
+      loadHistory(); // geçmişi güncelle
+    } else {
+      statusEl.innerHTML = `<div class="spinner visible" style="display:inline-block"></div> İşleniyor (${status})...`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:var(--red)">Sorgu hatası: ${e.message}</span>`;
+  }
+}
+
+// ─────────────────────────────────────────────
+// BÖLÜM 3: SONUÇ RENDER
+// ─────────────────────────────────────────────
+function renderResult(data) {
+  document.getElementById('result-empty').style.display = 'none';
+  const content = document.getElementById('result-content');
+  content.style.display = 'flex';
+
+  // Risk level
+  const result = data.result || data;
+  const riskLevel = (result.final_risk_level || result.risk_level || result.riskLevel || 'UNKNOWN').toUpperCase();
+  const riskLabelEl = document.getElementById('res-risk-label');
+  riskLabelEl.textContent = riskLevel;
+  riskLabelEl.className = 'risk-label ' + riskLevel.toLowerCase();
+
+  // RAG badge
+  const ragUsed = result.rag_used ?? result.ragUsed ?? false;
+  document.getElementById('res-rag-badge').innerHTML =
+    `<span class="badge ${ragUsed ? 'badge-ok' : 'badge-no'}">RAG: ${ragUsed ? 'Kullanıldı' : 'Kullanılmadı'}</span>`;
+
+  // Score
+  const score = result.final_risk_score ?? result.risk_score ?? result.riskScore ?? null;
+  if (score !== null) {
+    const pct = Math.round(score * 100);
+    document.getElementById('res-score-text').textContent = pct + '%';
+    const bar = document.getElementById('res-score-bar');
+    bar.style.width = pct + '%';
+    bar.style.background = pct >= 80 ? 'var(--red)' : pct >= 60 ? 'var(--orange)' : pct >= 40 ? 'var(--yellow)' : 'var(--green)';
+  } else {
+    document.getElementById('res-score-text').textContent = '—';
+    document.getElementById('res-score-bar').style.width = '0%';
+  }
+
+  // LLM output
+  const llm = result.llm_output || result.llmOutput || result.analysis || {};
+  document.getElementById('res-business').textContent  = llm.business_summary  || result.business_summary  || '—';
+  document.getElementById('res-technical').textContent = llm.technical_summary || result.technical_summary || '—';
+
+  // Rule triggers
+  const rules = result.rule_triggers || result.ruleTriggers || llm.rule_triggers || [];
+  renderList('res-rules', rules);
+
+  // Recommended actions
+  const recommended = llm.recommended_actions || result.recommended_actions || result.recommendedActions || [];
+  renderList('res-recommended', recommended);
+
+  // Executed actions
+  const executed = result.executed_actions || result.executedActions || result.tool_executions || [];
+  renderList('res-executed', executed);
+
+  // Meta
+  const procTime = result.processing_time_ms ?? result.processingTimeMs ?? data.processing_time_ms ?? null;
+  const jobId = data.job_id || data.jobId || data.id || '—';
+  document.getElementById('res-meta').innerHTML = `
+    <span class="meta-kv"><strong>Job ID:</strong><span class="mono">${String(jobId).slice(0,8)}…</span></span>
+    ${procTime !== null ? `<span class="meta-kv"><strong>Süre:</strong> ${procTime} ms</span>` : ''}
+    <span class="meta-kv"><strong>Durum:</strong> ${data.status || '—'}</span>
+  `;
+}
+
+function renderList(elId, items) {
+  const el = document.getElementById(elId);
+  if (!items || items.length === 0) {
+    el.innerHTML = '<div class="list-empty">Yok</div>';
+    return;
+  }
+  el.innerHTML = items.map(item => {
+    const text = typeof item === 'string' ? item : JSON.stringify(item);
+    return `<div class="list-item">${escHtml(text)}</div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// BÖLÜM 4: GEÇMİŞ ANALİZLER
+// ─────────────────────────────────────────────
+async function loadHistory() {
+  const spinner = document.getElementById('history-spinner');
+  const alertEl = document.getElementById('history-alert');
+  const tbody = document.getElementById('history-tbody');
+  clearAlert(alertEl);
+  spinner.classList.add('visible');
+
+  try {
+    const data = await apiFetch('/reports?page=1&page_size=10');
+    const items = data.items || data.data || data.results || (Array.isArray(data) ? data : []);
+
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px;">Henüz analiz yok.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = items.map(row => {
+      const jobId  = row.job_id || row.jobId || row.id || '—';
+      const sqlSnip = escHtml((row.sql_content || row.sqlContent || '—').slice(0, 50));
+      const risk   = (row.final_risk_level || row.risk_level || row.riskLevel || '—').toUpperCase();
+      const status = row.status || '—';
+      const date   = row.created_at || row.createdAt || row.timestamp || '—';
+      const dateStr = date !== '—' ? new Date(date).toLocaleString('tr-TR') : '—';
+      return `<tr data-jobid="${escHtml(jobId)}" onclick="loadJobDetail(this,'${escHtml(jobId)}')">
+        <td class="mono">${escHtml(String(jobId).slice(0,8))}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sqlSnip}</td>
+        <td>${riskBadge(risk)}</td>
+        <td>${statusBadge(status)}</td>
+        <td style="white-space:nowrap;font-size:12px;color:var(--text-muted)">${dateStr}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    showAlert(alertEl, 'Geçmiş yüklenemedi: ' + e.message, 'error');
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--red);text-align:center;padding:20px;">Yükleme hatası</td></tr>';
+  } finally {
+    spinner.classList.remove('visible');
+  }
+}
+
+async function loadJobDetail(rowEl, jobId) {
+  // Seçili satırı işaretle
+  document.querySelectorAll('#history-tbody tr').forEach(r => r.classList.remove('selected'));
+  rowEl.classList.add('selected');
+
+  try {
+    const data = await apiFetch(`/analyze/${jobId}`);
+    renderResult(data);
+    document.getElementById('analyze-alert').className = 'alert';
+    document.getElementById('job-status').innerHTML =
+      `<span style="color:var(--text-muted)">Geçmiş kayıt: ${jobId.slice(0,8)}…</span>`;
+  } catch (e) {
+    showAlert(document.getElementById('analyze-alert'), 'Detay yüklenemedi: ' + e.message, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// BÖLÜM 5: KNOWLEDGE BASE
+// ─────────────────────────────────────────────
+async function searchKB() {
+  const query = document.getElementById('kb-query').value.trim();
+  const alertEl = document.getElementById('kb-alert');
+  const spinner = document.getElementById('kb-spinner');
+  const results = document.getElementById('kb-results');
+  clearAlert(alertEl);
+
+  if (!query) { showAlert(alertEl, 'Arama terimi boş olamaz.', 'error'); return; }
+
+  spinner.classList.add('visible');
+  results.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">Aranıyor...</div>';
+
+  try {
+    const data = await apiFetch(`/knowledge/search?query=${encodeURIComponent(query)}&top_k=5`);
+    const items = data.results || data.chunks || data.items || (Array.isArray(data) ? data : []);
+
+    if (!items.length) {
+      results.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">Sonuç bulunamadı.</div>';
+      return;
+    }
+
+    results.innerHTML = items.map(item => {
+      const text   = item.content || item.chunk_content || item.text || '—';
+      const score  = item.score ?? item.similarity ?? item.distance ?? null;
+      const source = item.source || item.document_title || item.title || item.metadata?.source || '—';
+      return `<div class="kb-card">
+        <div class="kb-card-text">${escHtml(text)}</div>
+        <div class="kb-card-meta">
+          ${score !== null ? `<span>Skor: <strong>${typeof score === 'number' ? score.toFixed(4) : score}</strong></span>` : ''}
+          <span>Kaynak: <strong>${escHtml(source)}</strong></span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    showAlert(alertEl, 'Arama hatası: ' + e.message, 'error');
+    results.innerHTML = '';
+  } finally {
+    spinner.classList.remove('visible');
+  }
+}
+
+// ─────────────────────────────────────────────
+// YARDIMCILAR
+// ─────────────────────────────────────────────
+function riskBadge(risk) {
+  const map = { LOW:'badge-low', MEDIUM:'badge-medium', HIGH:'badge-high', CRITICAL:'badge-critical' };
+  const cls = map[risk] || 'badge-no';
+  return `<span class="badge ${cls}">${risk}</span>`;
+}
+
+function statusBadge(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'completed') return `<span class="badge badge-ok">Tamamlandı</span>`;
+  if (s === 'failed')    return `<span class="badge badge-fail">Başarısız</span>`;
+  return `<span class="badge badge-proc">${escHtml(status)}</span>`;
+}
+
+function showAlert(el, msg, type) {
+  el.className = 'alert ' + type;
+  el.textContent = msg;
+}
+function clearAlert(el) {
+  el.className = 'alert';
+  el.textContent = '';
+}
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─────────────────────────────────────────────
+// BAŞLANGIC
+// ─────────────────────────────────────────────
+(function init() {
+  checkApiStatus();
+  setInterval(checkApiStatus, 15000);
+
+  loadHistory();
+  historyTimer = setInterval(loadHistory, 10000);
+})();
+</script>
+</body>
+</html>
