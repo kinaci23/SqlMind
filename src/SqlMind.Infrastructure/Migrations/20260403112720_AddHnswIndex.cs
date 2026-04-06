@@ -10,9 +10,12 @@ namespace SqlMind.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // pgvector HNSW/IVFFlat support max 2000 dims for vector type.
+            // Gemini text-embedding-004 produces 3072-dim vectors, so we cast to halfvec
+            // inline (supported in pgvector >= 0.7.0) to stay within the limit.
             migrationBuilder.Sql(
                 "CREATE INDEX IF NOT EXISTS idx_embeddings_vector_hnsw " +
-                "ON embeddings USING hnsw (vector vector_cosine_ops) " +
+                "ON embeddings USING hnsw ((\"Vector\"::halfvec(3072)) halfvec_cosine_ops) " +
                 "WITH (m = 16, ef_construction = 64)");
         }
 

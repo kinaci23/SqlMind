@@ -230,7 +230,7 @@ public sealed class AnalysisOrchestrator
                     InputHash      = job.InputHash,
                     SqlParseResult = sqlParseJson,
                     RuleTriggers   = ruleTriggersJson,
-                    LlmOutput      = llmOutputRaw,
+                    LlmOutput      = JsonSerializer.Serialize(new { error = ex.Message }),
                     RagUsed        = ragUsed,
                     ToolExecution  = $"[\"ERROR: {ex.Message}\"]",
                     Timestamp      = DateTimeOffset.UtcNow,

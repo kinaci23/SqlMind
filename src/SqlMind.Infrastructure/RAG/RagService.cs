@@ -77,26 +77,41 @@ public sealed class RagService : IRagService
         var texts    = chunks.Select(c => c.Content).ToList();
         var vectors  = await _embedding.EmbedBatchAsync(texts, ct);
 
-        // Persist document + chunks + embeddings in a single transaction
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        // Persist document + chunks + embeddings in a single transaction.
+        // NpgsqlRetryingExecutionStrategy requires user-initiated transactions to be
+        // wrapped in an execution strategy — otherwise EF throws at BeginTransaction.
+        var strategy = _db.Database.CreateExecutionStrategy();
+        List<EmbeddingRecord> records = [];
 
-        _db.KnowledgeDocuments.Add(document);
-        await _db.SaveChangesAsync(ct); // need document.Id to exist before chunks
-
-        _db.KnowledgeChunks.AddRange(chunks);
-        await _db.SaveChangesAsync(ct); // need chunk.Id before embeddings
-
-        var records = chunks.Select((chunk, i) => new EmbeddingRecord
+        await strategy.ExecuteAsync(async () =>
         {
-            ChunkId   = chunk.Id,
-            Vector    = vectors[i],
-            CreatedAt = DateTimeOffset.UtcNow
-        }).ToList();
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                _db.KnowledgeDocuments.Add(document);
+                await _db.SaveChangesAsync(ct); // need document.Id to exist before chunks
 
-        _db.EmbeddingRecords.AddRange(records);
-        await _db.SaveChangesAsync(ct);
+                _db.KnowledgeChunks.AddRange(chunks);
+                await _db.SaveChangesAsync(ct); // need chunk.Id before embeddings
 
-        await tx.CommitAsync(ct);
+                records = chunks.Select((chunk, i) => new EmbeddingRecord
+                {
+                    ChunkId   = chunk.Id,
+                    Vector    = vectors[i],
+                    CreatedAt = DateTimeOffset.UtcNow
+                }).ToList();
+
+                _db.EmbeddingRecords.AddRange(records);
+                await _db.SaveChangesAsync(ct);
+
+                await tx.CommitAsync(ct);
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        });
 
         _logger.LogInformation(
             "Document '{Title}' indexed: {Chunks} chunks, {Embeddings} embeddings.",

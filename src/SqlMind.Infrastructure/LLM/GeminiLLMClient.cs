@@ -17,7 +17,7 @@ namespace SqlMind.Infrastructure.LLM;
 public sealed class GeminiLLMClient : ILLMClient
 {
     // ── Gemini REST endpoint ──────────────────────────────────────────────────
-    private const string Model       = "gemini-2.5-pro";
+    private const string Model       = "gemini-2.0-flash";
     private const string BaseUrl     = "https://generativelanguage.googleapis.com/v1beta/models";
     private const float  Temperature = 0.1f;   // deterministic output (0.0–0.2)
     private const int    MaxRetries  = 3;
