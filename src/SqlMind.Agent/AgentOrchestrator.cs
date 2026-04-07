@@ -137,14 +137,10 @@ public sealed class AgentOrchestrator
                 "Iteration {Iteration} complete — Success={Success} Failed={Failed} CorrelationId={CorrelationId}",
                 iteration, successCount, failCount, context.CorrelationId);
 
-            // All succeeded — no need to iterate further
-            if (failCount == 0)
-                break;
-
-            // Partial failures — continue loop up to MaxIterations for retry signal
-            _logger.LogWarning(
-                "{FailCount} tool(s) failed on iteration {Iteration}. Will observe and re-evaluate if iterations remain.",
-                failCount, iteration);
+            // Tools were executed — stop the loop regardless of success/failure.
+            // PolicyEngine would approve the same actions again on the next iteration
+            // (risk level doesn't change), causing duplicate tool execution.
+            break;
         }
 
         if (iteration >= MaxIterations)

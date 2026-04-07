@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SqlMind Dashboard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #0f1117;
+  --panel:  #161b22;
+  --border: #21262d;
+  --text:   #e6edf3;
+  --muted:  #7d8590;
+  --blue:   #2f81f7;
+  --green:  #3fb950;
+  --yellow: #d29922;
+  --orange: #f0883e;
+  --red:    #f85149;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── HEADER ── */
+#header {
+  height: 48px;
+  min-height: 48px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  justify-content: space-between;
+}
+#header-title { font-size: 16px; font-weight: 600; color: var(--text); }
+#header-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--red);
+  transition: background .3s;
+}
+.dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* ── MIDDLE ── */
+#middle {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── LEFT PANEL ── */
+#left {
+  width: 400px;
+  min-width: 400px;
+  border-right: 1px solid var(--border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.field-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 5px;
+  display: block;
+}
+
+textarea, input[type="text"], select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color .15s;
+  font-family: inherit;
+}
+textarea:focus, input:focus, select:focus { border-color: var(--blue); }
+
+#sql-input {
+  height: 140px;
+  resize: none;
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.check-row { display: flex; gap: 20px; }
+.check-item { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.check-item input { accent-color: var(--blue); width: 14px; height: 14px; cursor: pointer; }
+
+#submit-btn {
+  width: 100%;
+  height: 38px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+#submit-btn:hover { opacity: .85; }
+#submit-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+#form-msg { font-size: 12px; color: var(--muted); min-height: 16px; }
+#form-msg.err { color: var(--red); }
+#form-msg.ok  { color: var(--green); }
+
+/* ── RIGHT PANEL ── */
+#right {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#result-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+#result-empty .icon { font-size: 36px; opacity: .3; }
+
+#result-content { display: none; flex-direction: column; gap: 14px; }
+
+.risk-strip {
+  border-radius: 6px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: .03em;
+  color: #fff;
+}
+.risk-strip.LOW      { background: var(--green); }
+.risk-strip.MEDIUM   { background: var(--yellow); color: #000; }
+.risk-strip.HIGH     { background: var(--orange); }
+.risk-strip.CRITICAL { background: var(--red); }
+.risk-strip.UNKNOWN  { background: var(--muted); }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.info-cell {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+.info-cell .ic-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.info-cell .ic-value { font-size: 14px; font-weight: 600; color: var(--text); }
+
+.section-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.section-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.action-list { display: flex; flex-direction: column; gap: 6px; }
+.action-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.action-item::before { content: '\203A '; color: var(--blue); font-weight: 700; }
+
+.failed-banner {
+  background: rgba(248,81,73,.1);
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── LOG PANEL ── */
+#log-panel {
+  height: 180px;
+  min-height: 180px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
+#log-header {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+#log-header-title { font-size: 12px; font-weight: 600; color: var(--muted); }
+#log-clear-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+#log-clear-btn:hover { border-color: var(--muted); color: var(--text); }
+
+#log-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 8px;
+}
+
+.log-line {
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+  color: var(--muted);
+}
+.log-line.SUCCESS { color: var(--green); }
+.log-line.WARN    { color: var(--yellow); }
+.log-line.ERROR   { color: var(--red); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <span id="header-title">SqlMind</span>
+  <div id="header-status">
+    <div class="dot" id="api-dot"></div>
+    <span id="api-text">Bağlanıyor...</span>
+  </div>
+</div>
+
+<!-- MIDDLE -->
+<div id="middle">
+
+  <!-- SOL: FORM -->
+  <div id="left">
+    <div>
+      <span class="field-label">SQL Script</span>
+      <textarea id="sql-input" placeholder="SQL scriptinizi buraya yapıştırın..."></textarea>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <span class="field-label">Ortam</span>
+        <select id="env-select">
+          <option value="development">Development</option>
+          <option value="production">Production</option>
+        </select>
+      </div>
+      <div>
+        <span class="field-label">Talep Eden</span>
+        <input type="text" id="requested-by" placeholder="ornek@sirket.com" value="dashboard-user">
+      </div>
+    </div>
+
+    <div class="check-row">
+      <label class="check-item">
+        <input type="checkbox" id="use-rag" checked> RAG Kullan
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="auto-action"> Otomatik Aksiyon
+      </label>
+    </div>
+
+    <button id="submit-btn" onclick="submitAnalysis()">Analiz Et</button>
+    <div id="form-msg"></div>
+  </div>
+
+  <!-- SAG: SONUC -->
+  <div id="right">
+    <div id="result-empty">
+      <div class="icon">&#128202;</div>
+      <span>Analiz sonucu burada gorunecek</span>
+    </div>
+    <div id="result-content">
+      <div class="risk-strip UNKNOWN" id="risk-strip">&#8212;</div>
+
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="ic-label">Risk Skoru</div>
+          <div class="ic-value" id="ic-score">&#8212;</div>
+        </div>
+        <div class="info-cell">
+          <div class="ic-label">RAG</div>
+          <div class="ic-value" id="ic-rag">&#8212;</div>
+        </div>
+        <div class="info-cell">
+          <div class="ic-label">Sure</div>
+          <div class="ic-value" id="ic-time">&#8212;</div>
+        </div>
+        <div class="info-cell">
+          <div class="ic-label">Kural</div>
+          <div class="ic-value" id="ic-rule">&#8212;</div>
+        </div>
+      </div>
+
+      <div id="res-failed" class="failed-banner" style="display:none">Analiz basarisiz</div>
+
+      <div id="block-business">
+        <div class="section-label">Is Ozeti</div>
+        <div class="section-text" id="res-business">&#8212;</div>
+      </div>
+
+      <div id="block-technical">
+        <div class="section-label">Teknik Ozet</div>
+        <div class="section-text" id="res-technical">&#8212;</div>
+      </div>
+
+      <div id="block-actions">
+        <div class="section-label">Onerilen Aksiyonlar</div>
+        <div class="action-list" id="res-actions"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- LOG PANEL -->
+<div id="log-panel">
+  <div id="log-header">
+    <span id="log-header-title">Canli Loglar</span>
+    <button id="log-clear-btn" onclick="clearLogs()">Temizle</button>
+  </div>
+  <div id="log-body"></div>
+</div>
+
+<script>
+'use strict';
+
+const API = 'http://localhost:5127/api/v1';
+let pollingTimer = null;
+let seenKeys = new Set();
+
+// ── API STATUS ────────────────────────────────────────
+async function checkApi() {
+  const dot  = document.getElementById('api-dot');
+  const text = document.getElementById('api-text');
+  try {
+    const r = await fetch(API + '/logs?limit=1', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      dot.classList.add('online');
+      text.textContent = 'API Bagli';
+      return;
+    }
+  } catch {}
+  dot.classList.remove('online');
+  text.textContent = 'API Baglanilmadi';
+}
+
+// ── SUBMIT ────────────────────────────────────────────
+async function submitAnalysis() {
+  const sql = document.getElementById('sql-input').value.trim();
+  const btn = document.getElementById('submit-btn');
+
+  setMsg('', '');
+
+  if (!sql) { setMsg('SQL bos olamaz.', 'err'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Isleniyor...';
+  setMsg('Gonderiliyor...', '');
+
+  const body = {
+    sql_content:  sql,
+    db_dialect:   'postgresql',
+    environment:  document.getElementById('env-select').value,
+    requested_by: document.getElementById('requested-by').value || 'dashboard-user',
+    options: {
+      use_rag:        document.getElementById('use-rag').checked,
+      auto_action:    document.getElementById('auto-action').checked,
+      risk_threshold: 'HIGH'
+    }
+  };
+
+  try {
+    const res = await fetch(API + '/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data  = await res.json();
+    const jobId = data.job_id || data.jobId || data.id;
+    if (!jobId) throw new Error('job_id gelmedi');
+
+    setMsg('Job olusturuldu, sonuc bekleniyor...', 'ok');
+    startPolling(jobId);
+  } catch (e) {
+    setMsg('Hata: ' + e.message, 'err');
+    resetBtn();
+  }
+}
+
+function setMsg(text, cls) {
+  const el = document.getElementById('form-msg');
+  el.className = cls;
+  el.textContent = text;
+}
+
+function resetBtn() {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = false;
+  btn.textContent = 'Analiz Et';
+}
+
+// ── POLLING ───────────────────────────────────────────
+function startPolling(jobId) {
+  if (pollingTimer) clearInterval(pollingTimer);
+  pollOnce(jobId);
+  pollingTimer = setInterval(() => pollOnce(jobId), 2000);
+}
+
+async function pollOnce(jobId) {
+  try {
+    const res  = await fetch(API + '/analyze/' + jobId);
+    if (!res.ok) return;
+    const data   = await res.json();
+    const status = (data.status || '').toLowerCase();
+
+    if (status === 'completed' || status === 'failed') {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+      resetBtn();
+      setMsg(status === 'completed' ? 'Tamamlandi.' : 'Basarisiz.', status === 'completed' ? 'ok' : 'err');
+      renderResult(data, status === 'failed');
+    }
+  } catch {}
+}
+
+// ── RENDER RESULT ─────────────────────────────────────
+// API response shape:
+// { job_id, correlation_id, status, report: { risk_level, risk_score, rag_used,
+//   processing_time_ms, rule_triggers, summary_business, summary_technical,
+//   recommended_actions, executed_actions, ... } }
+function renderResult(data, failed) {
+  document.getElementById('result-empty').style.display = 'none';
+  const content = document.getElementById('result-content');
+  content.style.display = 'flex';
+
+  document.getElementById('res-failed').style.display = failed ? 'block' : 'none';
+
+  // report is null when status=Failed
+  const r = data.report || {};
+
+  const risk = (r.risk_level || 'UNKNOWN').toUpperCase();
+  const strip = document.getElementById('risk-strip');
+  strip.className   = 'risk-strip ' + risk;
+  strip.textContent = '\u25CF ' + risk + ' R\u0130SK';
+
+  const score = r.risk_score ?? null;
+  document.getElementById('ic-score').textContent = score !== null ? (score * 100).toFixed(0) + '%' : '\u2014';
+
+  const ragUsed = r.rag_used ?? false;
+  const ragEl   = document.getElementById('ic-rag');
+  ragEl.textContent = ragUsed ? 'Kullan\u0131ld\u0131' : 'Kullan\u0131lmad\u0131';
+  ragEl.style.color = ragUsed ? 'var(--green)' : 'var(--muted)';
+
+  const ms = r.processing_time_ms ?? null;
+  document.getElementById('ic-time').textContent = ms !== null ? ms + 'ms' : '\u2014';
+
+  const rules = r.rule_triggers || [];
+  document.getElementById('ic-rule').textContent = rules.length ? rules[0] : '\u2014';
+
+  document.getElementById('res-business').textContent  = r.summary_business  || '\u2014';
+  document.getElementById('res-technical').textContent = r.summary_technical || '\u2014';
+
+  const actions = r.recommended_actions || [];
+  const actEl   = document.getElementById('res-actions');
+  if (actions.length) {
+    actEl.innerHTML = actions.map(a =>
+      '<div class="action-item">' + esc(typeof a === 'string' ? a : JSON.stringify(a)) + '</div>'
+    ).join('');
+  } else {
+    actEl.innerHTML = '<div style="color:var(--muted);font-size:12px">Oneri yok</div>';
+  }
+}
+
+// ── LOGS ─────────────────────────────────────────────
+async function fetchLogs() {
+  try {
+    const res  = await fetch(API + '/logs?limit=100');
+    if (!res.ok) return;
+    const logs = await res.json();
+    const body = document.getElementById('log-body');
+    let added  = false;
+
+    for (const log of logs) {
+      const key = log.timestamp + '|' + log.level + '|' + log.message;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+
+      const t     = new Date(log.timestamp).toLocaleTimeString('tr-TR', { hour12: false });
+      const cid   = log.correlationId ? ' [#' + log.correlationId.slice(0, 8) + ']' : '';
+      const level = (log.level || 'INFO').toUpperCase().padEnd(7);
+      const line  = document.createElement('div');
+      line.className   = 'log-line ' + (log.level || 'INFO');
+      line.textContent = t + '  ' + level + '  ' + log.message + cid;
+      body.appendChild(line);
+      added = true;
+    }
+
+    if (added) body.scrollTop = body.scrollHeight;
+  } catch {}
+}
+
+async function clearLogs() {
+  try {
+    await fetch(API + '/logs', { method: 'DELETE' });
+    seenKeys.clear();
+    document.getElementById('log-body').innerHTML = '';
+  } catch {}
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ── INIT ─────────────────────────────────────────────
+checkApi();
+setInterval(checkApi, 15000);
+fetchLogs();
+setInterval(fetchLogs, 1500);
+</script>
+</body>
+</html>

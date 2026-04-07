@@ -46,6 +46,10 @@ public static class PromptBuilder
         5. Do not hallucinate table schemas, business rules, or execution plans.
            If you are unsure, state it in the "uncertainties" field.
         6. "recommended_actions" must be concrete and actionable (not generic advice).
+        7. CRITICAL LANGUAGE RULE: You MUST respond ONLY in Turkish.
+           All fields including business_summary, technical_summary,
+           risk_insights, uncertainties and recommended_actions
+           MUST be written in Turkish. Never use English in your response.
 
         ## Output Schema (strict — all fields required)
         {OutputSchema}

@@ -116,6 +116,8 @@ builder.Services.AddHangfireJobService(); // IBackgroundJobService
 // ── Build ─────────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
+app.UseStaticFiles();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

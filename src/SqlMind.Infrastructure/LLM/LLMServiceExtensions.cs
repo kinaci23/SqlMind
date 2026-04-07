@@ -17,7 +17,7 @@ public static class LLMServiceExtensions
         services
             .AddHttpClient<ILLMClient, GeminiLLMClient>(client =>
             {
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromSeconds(120);
             });
 
         return services;

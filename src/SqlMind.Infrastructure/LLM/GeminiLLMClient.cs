@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SqlMind.Core;
 using SqlMind.Core.Interfaces;
 using SqlMind.Core.Models;
 
@@ -17,7 +18,7 @@ namespace SqlMind.Infrastructure.LLM;
 public sealed class GeminiLLMClient : ILLMClient
 {
     // ── Gemini REST endpoint ──────────────────────────────────────────────────
-    private const string Model       = "gemini-2.0-flash";
+    private const string Model       = "gemini-3-flash-preview";
     private const string BaseUrl     = "https://generativelanguage.googleapis.com/v1beta/models";
     private const float  Temperature = 0.1f;   // deterministic output (0.0–0.2)
     private const int    MaxRetries  = 3;
@@ -69,6 +70,8 @@ public sealed class GeminiLLMClient : ILLMClient
         _logger.LogDebug(
             "Gemini raw response. CorrelationId={CorrelationId} Length={Length}",
             request.CorrelationId, rawJson.Length);
+        AppLogger.Info($"LLM raw response: {rawJson[..Math.Min(500, rawJson.Length)]}", request.CorrelationId);
+        Console.WriteLine("RAW LLM RESPONSE: " + rawJson);
 
         return LlmOutputValidator.ValidateAndParse(rawJson);
     }
@@ -149,6 +152,7 @@ public sealed class GeminiLLMClient : ILLMClient
                     _logger.LogWarning(
                         "Gemini returned {StatusCode}. Retry {Attempt}/{Max} in {Delay}s.",
                         (int)response.StatusCode, attempt, MaxRetries, delay.TotalSeconds);
+                    AppLogger.Warn($"Rate limit — {attempt}/{MaxRetries} deneme, {(int)delay.TotalSeconds}sn bekleniyor");
                     await Task.Delay(delay, cancellationToken);
                     continue;
                 }
@@ -163,6 +167,7 @@ public sealed class GeminiLLMClient : ILLMClient
                 _logger.LogWarning(
                     "Gemini HTTP error. Retry {Attempt}/{Max} in {Delay}s.",
                     attempt, MaxRetries, delay.TotalSeconds);
+                AppLogger.Warn($"Rate limit — {attempt}/{MaxRetries} deneme, {(int)delay.TotalSeconds}sn bekleniyor");
                 await Task.Delay(delay, cancellationToken);
             }
         }

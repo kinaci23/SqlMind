@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SqlMind.Core;
 using SqlMind.Core.Enums;
 using SqlMind.Core.Interfaces;
 using SqlMind.Core.Models;
@@ -79,6 +80,7 @@ public sealed class AnalysisOrchestrator
         _logger.LogInformation(
             "Pipeline starting — JobId={JobId} CorrelationId={CorrelationId}",
             jobId, job.CorrelationId);
+        AppLogger.Info("Pipeline başladı", job.CorrelationId);
 
         job.Status = "Processing";
         await _jobRepo.UpdateAsync(job, ct);
@@ -98,6 +100,7 @@ public sealed class AnalysisOrchestrator
             sqlParseJson    = JsonSerializer.Serialize(parseResult, _json);
             job.ParseResultJson = sqlParseJson;
             await _jobRepo.UpdateAsync(job, ct);
+            AppLogger.Info($"SQL parse: {string.Join(",", parseResult.Operations)} | Tablo: {string.Join(",", parseResult.TablesDetected)}", job.CorrelationId);
 
             // ── 2. RULE-BASED RISK ────────────────────────────────────────────
             _logger.LogDebug("Step 2: Rule-based risk — CorrelationId={Id}", job.CorrelationId);
@@ -108,6 +111,7 @@ public sealed class AnalysisOrchestrator
             _logger.LogInformation(
                 "Rule-based risk: {Level} ({Count} findings) — CorrelationId={Id}",
                 riskLevel, findings.Count, job.CorrelationId);
+            AppLogger.Info($"Risk: {riskLevel} ({findings.Count} kural tetiklendi)", job.CorrelationId);
 
             // ── 3. CACHE CHECK ────────────────────────────────────────────────
             var cacheKey     = $"llm:{job.InputHash}";
@@ -118,6 +122,7 @@ public sealed class AnalysisOrchestrator
                 _logger.LogInformation(
                     "Cache HIT for InputHash={Hash} — skipping LLM. CorrelationId={Id}",
                     job.InputHash, job.CorrelationId);
+                AppLogger.Info("Cache HIT — LLM atlanıyor", job.CorrelationId);
                 llmOutputRaw = llmResult.RawJson;
             }
             else
@@ -126,15 +131,24 @@ public sealed class AnalysisOrchestrator
                 _logger.LogDebug("Step 4: RAG gating — CorrelationId={Id}", job.CorrelationId);
                 RagContext ragContext = new() { WasUsed = false };
 
-                if (await _ragService.ShouldUseRagAsync(parseResult, riskLevel))
+                var shouldUseRag = await _ragService.ShouldUseRagAsync(parseResult, riskLevel);
+                AppLogger.Info($"RAG gating: tablesDetected={parseResult.TablesDetected.Count}, riskLevel={riskLevel}, shouldUse={shouldUseRag}", job.CorrelationId);
+
+                if (shouldUseRag)
                 {
                     _logger.LogInformation("RAG triggered — CorrelationId={Id}", job.CorrelationId);
+                    AppLogger.Info("RAG çalıştırılıyor...", job.CorrelationId);
                     ragContext = await _ragService.RetrieveAsync(job.SqlContent, topK: 5, ct: ct);
                     ragUsed   = ragContext.WasUsed;
+                }
+                else
+                {
+                    AppLogger.Info("RAG atlandı", job.CorrelationId);
                 }
 
                 // ── 5. LLM ANALYSIS ───────────────────────────────────────────
                 _logger.LogDebug("Step 5: LLM analysis — CorrelationId={Id}", job.CorrelationId);
+                AppLogger.Info("Gemini'ye istek gönderiliyor...", job.CorrelationId);
                 var llmRequest = new LlmAnalysisRequest
                 {
                     ParseResult          = parseResult,
@@ -145,6 +159,7 @@ public sealed class AnalysisOrchestrator
 
                 llmResult    = await _llmClient.AnalyzeAsync(llmRequest, ct);
                 llmOutputRaw = llmResult.RawJson;
+                AppLogger.Success("LLM yanıtı alındı", job.CorrelationId);
 
                 // Cache the validated LLM output
                 await _cache.SetAsync(cacheKey, llmResult, TimeSpan.FromHours(1), ct);
@@ -172,6 +187,8 @@ public sealed class AnalysisOrchestrator
                 .ToList();
 
             toolResultsJson = JsonSerializer.Serialize(executedTools, _json);
+            if (executedTools.Count > 0)
+                AppLogger.Info($"Agent aksiyonları: {string.Join(", ", executedTools)}", job.CorrelationId);
 
             // ── 8. AUDIT LOG ──────────────────────────────────────────────────
             _logger.LogDebug("Step 8: Writing audit log — CorrelationId={Id}", job.CorrelationId);
@@ -212,10 +229,12 @@ public sealed class AnalysisOrchestrator
             _logger.LogInformation(
                 "Pipeline complete — JobId={JobId} Risk={Risk} ProcessingMs={Ms} CorrelationId={Id}",
                 jobId, finalRisk, sw.ElapsedMilliseconds, job.CorrelationId);
+            AppLogger.Success($"Pipeline tamamlandı ({sw.ElapsedMilliseconds}ms)", job.CorrelationId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Pipeline failed — JobId={JobId} CorrelationId={Id}", jobId, job.CorrelationId);
+            AppLogger.Error($"Pipeline hatası: {ex.Message}", job.CorrelationId);
 
             job.Status      = "Failed";
             job.CompletedAt = DateTimeOffset.UtcNow;

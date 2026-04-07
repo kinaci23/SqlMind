@@ -113,7 +113,7 @@ public sealed class AnalysisController : ControllerBase
         if (!string.IsNullOrEmpty(result.LlmOutput))
         {
             try { llm = JsonSerializer.Deserialize<LlmAnalysisResult>(result.LlmOutput, _json); }
-            catch { /* non-fatal — partial report */ }
+            catch (Exception ex) { Console.WriteLine("LLM DESERIALIZE ERROR: " + ex.Message); }
         }
 
         SqlParseResult? parse = null;

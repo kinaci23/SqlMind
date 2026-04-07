@@ -1,4 +1,5 @@
 using System.Text.Json;
+using SqlMind.Core;
 using SqlMind.Core.Models;
 
 namespace SqlMind.Infrastructure.LLM;
@@ -60,7 +61,7 @@ public static class LlmOutputValidator
                         $"LLM response field '{field}' is empty.");
             }
 
-            return new LlmAnalysisResult
+            var result = new LlmAnalysisResult
             {
                 BusinessSummary    = root.GetProperty("business_summary").GetString()!,
                 TechnicalSummary   = root.GetProperty("technical_summary").GetString()!,
@@ -69,6 +70,10 @@ public static class LlmOutputValidator
                 RecommendedActions = ReadStringArray(root, "recommended_actions"),
                 RawJson            = json
             };
+
+            AppLogger.Info($"Parsed business_summary: '{result.BusinessSummary}'");
+
+            return result;
         }
     }
 
